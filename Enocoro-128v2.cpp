@@ -54,8 +54,7 @@ vector<uint8_t> Init(const vector<uint8_t>& K, const vector<uint8_t>& IV) {
     return S_next;
 }
 
-int main()
-{
+void encryptFile() {
     cout << "~~~For encryption you must enter Key (128 bit) and IV (64 bit) in format:" << endl;
     cout << "~~~ 00 00 00 ... 00 00 00" << endl;
     cout << "Enter the Key: ";
@@ -65,4 +64,42 @@ int main()
     auto iv = readBytes<uint64_t>();
     printBytes("IV", iv);
     vector<uint8_t> S_0 = Init(key, iv);
+}
+
+void decryptFile() {
+
+}
+
+int main()
+{
+    int choice;
+    bool running = true;
+    cout << "Welcome!" << endl;
+    while (running) {
+        cout << "Possible options of the program:" << endl;
+        cout << "0. Exit" << endl;
+        cout << "1. Encode file with Enocoro-128v2" << endl;
+        cout << "2. Decode file with Enocoro-128v2" << endl;
+        cout << "Your choice: ";
+        if (!(cin >> choice)) {
+            cout << "Error!!! Invalid input";
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            continue;
+        }
+        switch (choice) {
+        case 0:
+            cout << "You're exiting the program. Thank you for using it!" << endl;
+            running = false;
+            break;
+        case 1:
+            encryptFile();
+            break;
+        case 2: 
+            decryptFile();
+            break;
+        default:
+            cout << "There's no such option. Please, try again" << endl;
+        }
+    }
 }
