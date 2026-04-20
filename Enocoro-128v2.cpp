@@ -8,6 +8,11 @@ struct uint128_t {
     uint64_t part[2];
 };
 
+struct State {
+    uint8_t a[2];
+    uint8_t b[32];
+};
+
 template <typename T>
 vector<uint8_t> readBytes() {
     constexpr size_t numBytes = sizeof(T);
@@ -34,7 +39,7 @@ uint8_t Xtime(uint8_t X) { // Mult by 2 in GF(2^8) with irr.p. f(x) = x^8 + x^4 
     else return static_cast<uint8_t>(X << 1);
 }
 
-vector<uint8_t> Init(const vector<uint8_t>& K, const vector<uint8_t>& IV) {
+State Init(const vector<uint8_t>& K, const vector<uint8_t>& IV) {
     vector<uint8_t> constants = { 0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b };
     vector<uint8_t> bValues;
     bValues.reserve(32);
@@ -45,7 +50,7 @@ vector<uint8_t> Init(const vector<uint8_t>& K, const vector<uint8_t>& IV) {
     vector<uint8_t> aValues = { 0x88, 0x4c };
     printBytes("aValues", aValues);
     uint8_t counter = 1;
-    vector<uint8_t> S_next;
+    State S_next = {};
     for (int i = -96; i < 0; i++) {
         bValues[31] = bValues[31] ^ counter;
         counter = Xtime(counter);
@@ -63,7 +68,7 @@ void encryptFile() {
     cout << "Enter the IV: ";
     auto iv = readBytes<uint64_t>();
     printBytes("IV", iv);
-    vector<uint8_t> S_0 = Init(key, iv);
+    State S_0 = Init(key, iv);
 }
 
 void decryptFile() {
