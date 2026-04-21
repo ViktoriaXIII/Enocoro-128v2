@@ -2,6 +2,8 @@
 #include <vector>
 #include <iomanip>
 #include <cstdint>
+#include <array>
+#include <algorithm>
 using namespace std;
 
 struct uint128_t {
@@ -58,6 +60,45 @@ const uint8_t S_8[256] = {
     205, 9, 79, 125, 248, 134, 218, 16, 50, 118, 180, 163, 63, 68, 129, 235
 };
 
+
+vector<uint8_t> L(uint8_t U_0, uint8_t U_1) {
+    vector<uint8_t> V(2);
+    V[0] = U_0 ^ U_1;
+    V[1] = U_0 ^ Xtime(U_1);
+    return V;
+}
+
+vector<uint8_t> Rho(const vector<uint8_t>& A, const vector<uint8_t>& B) {
+    uint8_t u_0 = A[0] ^ S_8[B[2]];
+    uint8_t u_1 = A[1] ^ S_8[B[7]];
+    vector<uint8_t> V = L(u_0, u_1);
+    vector<uint8_t> A_next(2);
+    A_next[0] = V[0] ^ S_8[B[16]];
+    A_next[1] = V[1] ^ S_8[B[29]];
+    return A_next;
+}
+
+vector<uint8_t> Lambda(const vector<uint8_t>& A, const vector<uint8_t>& B) {
+    vector<uint8_t> B_next(32);
+    for (int j = 1; j < 32; j++) B_next[j] = B[j - 1];
+    B_next[0] = B[31] ^ A[0];
+    B_next[3] = B[2] ^ B[6];
+    B_next[8] = B[7] ^ B[15];
+    B_next[17] = B[16] ^ B[28];
+    return B_next;
+}
+
+State Next(const State& S) {
+    vector<uint8_t> A = { S.a[0], S.a[1] };
+    vector<uint8_t> B(S.b, S.b + 32);
+    vector<uint8_t> aValues_next = Rho(A, B);
+    vector<uint8_t> bValues_next = Lambda(A, B);
+    State S_next{};
+    copy(aValues_next.begin(), aValues_next.begin() + 2, S_next.a);
+    copy(bValues_next.begin(), bValues_next.begin() + 32, S_next.b);
+    return S_next;
+}
+
 State Init(const vector<uint8_t>& K, const vector<uint8_t>& IV) {
     vector<uint8_t> constants = { 0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b };
     vector<uint8_t> bValues;
@@ -65,15 +106,16 @@ State Init(const vector<uint8_t>& K, const vector<uint8_t>& IV) {
     bValues.insert(bValues.end(), K.begin(), K.end());
     bValues.insert(bValues.end(), IV.begin(), IV.end());
     bValues.insert(bValues.end(), constants.begin(), constants.end());
-    printBytes("bValues", bValues);
     vector<uint8_t> aValues = { 0x88, 0x4c };
-    printBytes("aValues", aValues);
+    State S{};
+    copy(aValues.begin(), aValues.begin() + 2, S.a);
+    copy(bValues.begin(), bValues.begin() + 32, S.b);
     uint8_t counter = 1;
     State S_next = {};
     for (int i = -96; i < 0; i++) {
         bValues[31] = bValues[31] ^ counter;
         counter = Xtime(counter);
-        //S_next = Next(S);
+        S_next = Next(S);
     }
     return S_next;
 }
