@@ -2,8 +2,10 @@
 #include <vector>
 #include <iomanip>
 #include <cstdint>
-#include <array>
 #include <algorithm>
+#include <fstream>
+#include <string>
+#include <filesystem>
 using namespace std;
 
 struct uint128_t {
@@ -34,6 +36,25 @@ void printBytes(const string& label, const vector<uint8_t>& bytes) {
     cout << label << ": ";
     for (size_t i = 0; i < bytes.size(); i++) cout << hex << uppercase << setw(2) << setfill('0') << (int)bytes[i] << (i < bytes.size() - 1 ? " " : "");
     cout << dec << " (" << bytes.size() << " bytes)" << endl;
+}
+
+void printState(const State& S) {
+    cout << "b: ";
+    for (int i = 0; i < 32; i++) cout << hex << uppercase << setw(2) << setfill('0') << (int)S.b[i] << " ";
+    cout << endl;
+    cout << "a: ";
+    for (int i = 0; i < 2; i++) cout << hex << uppercase << setw(2) << setfill('0') << (int)S.a[i] << " ";
+    cout << endl;
+}
+
+void printOneStep(int round, const State& S) {
+    cout << "Round = " << dec << round << endl;
+    cout << "State: ";
+    for (int i = 0; i < 2; i++) cout << hex << uppercase << setw(2) << setfill('0') << (int)S.a[i] << " ";
+    cout << endl;
+    cout << "Buffer: ";
+    for (int i = 0; i < 32; i++) cout << hex << uppercase << setw(2) << setfill('0') << (int)S.b[i] << " ";
+    cout << endl;
 }
 
 uint8_t Xtime(uint8_t X) { // Mult by 2 in GF(2^8) with irr.p. f(x) = x^8 + x^4 + x^3 + x + 1 = 0x11b
@@ -72,6 +93,9 @@ vector<uint8_t> Rho(const vector<uint8_t>& A, const vector<uint8_t>& B) {
     uint8_t u_0 = A[0] ^ S_8[B[2]];
     uint8_t u_1 = A[1] ^ S_8[B[7]];
     vector<uint8_t> V = L(u_0, u_1);
+    cout << hex << uppercase << setfill('0');
+    cout << "   [Rho !!!] u0:" << setw(2) << (int)u_0 << " u1:" << setw(2) << (int)u_1 << " | v0:" << setw(2) << (int)V[0] << " v1:" << setw(2) << (int)V[1] << endl;
+    cout << dec;
     vector<uint8_t> A_next(2);
     A_next[0] = V[0] ^ S_8[B[16]];
     A_next[1] = V[1] ^ S_8[B[29]];
@@ -80,11 +104,16 @@ vector<uint8_t> Rho(const vector<uint8_t>& A, const vector<uint8_t>& B) {
 
 vector<uint8_t> Lambda(const vector<uint8_t>& A, const vector<uint8_t>& B) {
     vector<uint8_t> B_next(32);
+    uint8_t x = B[31];
     for (int j = 1; j < 32; j++) B_next[j] = B[j - 1];
-    B_next[0] = B[31] ^ A[0];
+    //B_next[0] = B[31] ^ A[0];
+    B_next[0] = x ^ A[0];
     B_next[3] = B[2] ^ B[6];
     B_next[8] = B[7] ^ B[15];
     B_next[17] = B[16] ^ B[28];
+    /*B_next[3] = B[3] ^ B[7];
+    B_next[8] = B[8] ^ B[16];
+    B_next[17] = B[17] ^ B[29];*/
     return B_next;
 }
 
@@ -101,26 +130,57 @@ State Next(const State& S) {
 
 State Init(const vector<uint8_t>& K, const vector<uint8_t>& IV) {
     vector<uint8_t> constants = { 0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b };
-    vector<uint8_t> bValues;
-    bValues.reserve(32);
-    bValues.insert(bValues.end(), K.begin(), K.end());
-    bValues.insert(bValues.end(), IV.begin(), IV.end());
-    bValues.insert(bValues.end(), constants.begin(), constants.end());
-    vector<uint8_t> aValues = { 0x88, 0x4c };
     State S{};
-    copy(aValues.begin(), aValues.begin() + 2, S.a);
-    copy(bValues.begin(), bValues.begin() + 32, S.b);
+    for (int i = 0; i < 16; i++) S.b[i] = K[i];
+    for (int i = 0; i < 8; i++) S.b[i + 16] = IV[i];
+    for (int i = 0; i < 8; i++) S.b[i + 24] = constants[i];
+    S.a[0] = 0x88;
+    S.a[1] = 0x4c;
+    printState(S);
     uint8_t counter = 1;
     State S_next = {};
     for (int i = -96; i < 0; i++) {
-        bValues[31] = bValues[31] ^ counter;
+        printOneStep(i, S);
+        S.b[31] = S.b[31] ^ counter;
+        //counter = Xtime(counter);
+        S = Next(S);
         counter = Xtime(counter);
-        S_next = Next(S);
     }
-    return S_next;
+    return S;
 }
 
-void encryptFile() {
+uint8_t Stream(const State& S) {
+    return S.a[1];
+}
+
+void printKeyStream(State& S, int n) {
+    for (int i = 0; i < n; i++) {
+        cout << hex << uppercase << setw(2) << setfill('0') << (int)Stream(S) << " ";
+        S = Next(S);
+    }
+    cout << endl;
+}
+
+int encryptFile() {
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    string inputName;
+    cout << "Enter the file name: ";
+    getline(cin, inputName);
+    cout << endl;
+    ifstream input(inputName, ios::binary);
+    if (!input.is_open()) {
+        cerr << "ERROR!!! File cannot be open" << endl;
+        return 1;
+    }
+    string outputName;
+    cout << "Enter the name for encrypted file: ";
+    getline(cin, outputName);
+    cout << endl;
+    ofstream output(outputName);
+    if (!output.is_open()) {
+        cerr << "Could not create results file!" << endl;
+        return 1;
+    }
     cout << "~~~For encryption you must enter Key (128 bit) and IV (64 bit) in format:" << endl;
     cout << "~~~ 00 00 00 ... 00 00 00" << endl;
     cout << "Enter the Key: ";
@@ -130,6 +190,11 @@ void encryptFile() {
     auto iv = readBytes<uint64_t>();
     printBytes("IV", iv);
     State S_0 = Init(key, iv);
+    cout << "Initial state:" << endl;
+    //printState(S_0);
+    printOneStep(0, S_0);
+    size_t n = filesystem::file_size(inputName);
+    printKeyStream(S_0, 32);
 }
 
 void decryptFile() {
