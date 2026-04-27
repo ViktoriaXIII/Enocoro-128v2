@@ -163,7 +163,7 @@ int encryptFile() {
     cout << "Enter the name for encrypted file: ";
     getline(cin, outputName);
     cout << endl;
-    ofstream output(outputName);
+    ofstream output(outputName, ios::binary);
     if (!output.is_open()) {
         cerr << "Could not create results file!" << endl;
         return 1;
@@ -179,12 +179,67 @@ int encryptFile() {
     State S_0 = Init(key, iv);
     cout << "Initial state:" << endl;
     printOneStep(0, S_0);
-    size_t n = filesystem::file_size(inputName);
-    printKeyStream(S_0, 32);
+    //printKeyStream(S_0, 32);
+    cout << "Processing the file..." << endl;
+    char buffer;
+    while (input.get(buffer)) {
+        uint8_t k = Stream(S_0);
+        uint8_t p = static_cast<uint8_t>(buffer);
+        uint8_t c = p ^ k;
+        output.put(static_cast<char>(c));
+        S_0 = Next(S_0);
+    }
+    input.close();
+    output.close();
+    cout << "Encoding is done!" << endl;
+    return 0;
 }
 
-void decryptFile() {
-
+int decryptFile() {
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    string inputName;
+    cout << "Enter the name of encrypted file: ";
+    getline(cin, inputName);
+    cout << endl;
+    ifstream input(inputName, ios::binary);
+    if (!input.is_open()) {
+        cerr << "ERROR!!! File cannot be open" << endl;
+        return 1;
+    }
+    string outputName;
+    cout << "Enter the name for decrypted file: ";
+    getline(cin, outputName);
+    cout << endl;
+    ofstream output(outputName, ios::binary);
+    if (!output.is_open()) {
+        cerr << "Could not create results file!" << endl;
+        return 1;
+    }
+    cout << "~~~For decryption you must enter Key (128 bit) and IV (64 bit) in format:" << endl;
+    cout << "~~~ 00 00 00 ... 00 00 00" << endl;
+    cout << "Enter the Key: ";
+    auto key = readBytes<uint128_t>();
+    printBytes("Key", key);
+    cout << "Enter the IV: ";
+    auto iv = readBytes<uint64_t>();
+    printBytes("IV", iv);
+    State S_0 = Init(key, iv);
+    cout << "Initial state:" << endl;
+    printOneStep(0, S_0);
+    //printKeyStream(S_0, 32);
+    cout << "Processing the file..." << endl;
+    char buffer;
+    while (input.get(buffer)) {
+        uint8_t k = Stream(S_0);
+        uint8_t p = static_cast<uint8_t>(buffer);
+        uint8_t c = p ^ k;
+        output.put(static_cast<char>(c));
+        S_0 = Next(S_0);
+    }
+    input.close();
+    output.close();
+    cout << "Decoding is done!" << endl;
+    return 0;
 }
 
 int main()
