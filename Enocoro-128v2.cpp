@@ -38,15 +38,6 @@ void printBytes(const string& label, const vector<uint8_t>& bytes) {
     cout << dec << " (" << bytes.size() << " bytes)" << endl;
 }
 
-void printState(const State& S) {
-    cout << "b: ";
-    for (int i = 0; i < 32; i++) cout << hex << uppercase << setw(2) << setfill('0') << (int)S.b[i] << " ";
-    cout << endl;
-    cout << "a: ";
-    for (int i = 0; i < 2; i++) cout << hex << uppercase << setw(2) << setfill('0') << (int)S.a[i] << " ";
-    cout << endl;
-}
-
 void printOneStep(int round, const State& S) {
     cout << "Round = " << dec << round << endl;
     cout << "State: ";
@@ -57,8 +48,8 @@ void printOneStep(int round, const State& S) {
     cout << endl;
 }
 
-uint8_t Xtime(uint8_t X) { // Mult by 2 in GF(2^8) with irr.p. f(x) = x^8 + x^4 + x^3 + x + 1 = 0x11b
-    if (X & 0x80) return static_cast<uint8_t>((X << 1) ^ 0x1b);
+uint8_t Xtime(uint8_t X) { // Mult by 2 in GF(2^8) with irr.p. f(x) = x^8 + x^4 + x^3 + x^2 + 1 = 0x11d
+    if (X & 0x80) return static_cast<uint8_t>((X << 1) ^ 0x1d);
     else return static_cast<uint8_t>(X << 1);
 }
 
@@ -93,9 +84,9 @@ vector<uint8_t> Rho(const vector<uint8_t>& A, const vector<uint8_t>& B) {
     uint8_t u_0 = A[0] ^ S_8[B[2]];
     uint8_t u_1 = A[1] ^ S_8[B[7]];
     vector<uint8_t> V = L(u_0, u_1);
-    cout << hex << uppercase << setfill('0');
+    /*cout << hex << uppercase << setfill('0');
     cout << "   [Rho !!!] u0:" << setw(2) << (int)u_0 << " u1:" << setw(2) << (int)u_1 << " | v0:" << setw(2) << (int)V[0] << " v1:" << setw(2) << (int)V[1] << endl;
-    cout << dec;
+    cout << dec;*/
     vector<uint8_t> A_next(2);
     A_next[0] = V[0] ^ S_8[B[16]];
     A_next[1] = V[1] ^ S_8[B[29]];
@@ -132,7 +123,6 @@ State Init(const vector<uint8_t>& K, const vector<uint8_t>& IV) {
     for (int i = 0; i < 8; i++) S.b[i + 24] = constants[i];
     S.a[0] = 0x88;
     S.a[1] = 0x4c;
-    printState(S);
     uint8_t counter = 1;
     State S_next = {};
     for (int i = -96; i < 0; i++) {
@@ -149,10 +139,12 @@ uint8_t Stream(const State& S) {
 }
 
 void printKeyStream(State& S, int n) {
+    cout << "Keystream: ";
     for (int i = 0; i < n; i++) {
         cout << hex << uppercase << setw(2) << setfill('0') << (int)Stream(S) << " ";
         S = Next(S);
     }
+    cout << dec << " (" << n << " bytes)" << endl;
     cout << endl;
 }
 
@@ -186,7 +178,6 @@ int encryptFile() {
     printBytes("IV", iv);
     State S_0 = Init(key, iv);
     cout << "Initial state:" << endl;
-    //printState(S_0);
     printOneStep(0, S_0);
     size_t n = filesystem::file_size(inputName);
     printKeyStream(S_0, 32);
