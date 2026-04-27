@@ -106,14 +106,10 @@ vector<uint8_t> Lambda(const vector<uint8_t>& A, const vector<uint8_t>& B) {
     vector<uint8_t> B_next(32);
     uint8_t x = B[31];
     for (int j = 1; j < 32; j++) B_next[j] = B[j - 1];
-    //B_next[0] = B[31] ^ A[0];
     B_next[0] = x ^ A[0];
     B_next[3] = B[2] ^ B[6];
     B_next[8] = B[7] ^ B[15];
     B_next[17] = B[16] ^ B[28];
-    /*B_next[3] = B[3] ^ B[7];
-    B_next[8] = B[8] ^ B[16];
-    B_next[17] = B[17] ^ B[29];*/
     return B_next;
 }
 
@@ -142,9 +138,8 @@ State Init(const vector<uint8_t>& K, const vector<uint8_t>& IV) {
     for (int i = -96; i < 0; i++) {
         printOneStep(i, S);
         S.b[31] = S.b[31] ^ counter;
-        //counter = Xtime(counter);
-        S = Next(S);
         counter = Xtime(counter);
+        S = Next(S);
     }
     return S;
 }
