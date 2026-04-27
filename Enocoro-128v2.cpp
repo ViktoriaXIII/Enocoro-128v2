@@ -32,6 +32,19 @@ vector<uint8_t> readBytes() {
     return bytes;
 }
 
+vector<uint8_t> hexToBytes(string hex) {
+    hex.erase(remove(hex.begin(), hex.end(), ' '), hex.end());
+    hex.erase(remove(hex.begin(), hex.end(), '\r'), hex.end());
+    hex.erase(remove(hex.begin(), hex.end(), '\n'), hex.end());
+    vector<uint8_t> bytes;
+    for (int i = 0; i < hex.length(); i += 2) {
+        string byteString = hex.substr(i, 2);
+        uint8_t byte = (uint8_t)strtol(byteString.c_str(), nullptr, 16);
+        bytes.push_back(byte);
+    }
+    return bytes;
+}
+
 void printBytes(const string& label, const vector<uint8_t>& bytes) {
     cout << label << ": ";
     for (size_t i = 0; i < bytes.size(); i++) cout << hex << uppercase << setw(2) << setfill('0') << (int)bytes[i] << (i < bytes.size() - 1 ? " " : "");
@@ -115,7 +128,7 @@ State Next(const State& S) {
     return S_next;
 }
 
-State Init(const vector<uint8_t>& K, const vector<uint8_t>& IV) {
+State Init(const vector<uint8_t>& K, const vector<uint8_t>& IV, bool silent = false) {
     vector<uint8_t> constants = { 0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b };
     State S{};
     for (int i = 0; i < 16; i++) S.b[i] = K[i];
@@ -126,7 +139,7 @@ State Init(const vector<uint8_t>& K, const vector<uint8_t>& IV) {
     uint8_t counter = 1;
     State S_next = {};
     for (int i = -96; i < 0; i++) {
-        printOneStep(i, S);
+        if (!silent) printOneStep(i, S);
         S.b[31] = S.b[31] ^ counter;
         counter = Xtime(counter);
         S = Next(S);
@@ -146,6 +159,42 @@ void printKeyStream(State& S, int n) {
     }
     cout << dec << " (" << n << " bytes)" << endl;
     cout << endl;
+}
+
+void Tests() {
+    ifstream keys("test_keys.txt");
+    ifstream ivs("test_ivs.txt");
+    ifstream keystreams("test_expected_keystreams.txt");
+    if (!keys || !ivs || !keystreams) {
+        cerr << "Error!!! Test files are not found" << endl;
+        return;
+    }
+    string keyLine, ivLine, keystreamLine;
+    int count = 1;
+    cout << "~~~ Starting Tests ~~~" << endl;
+    while (getline(keys, keyLine) && getline(ivs, ivLine) && getline(keystreams, keystreamLine)) {
+        vector<uint8_t> key = hexToBytes(keyLine);
+        vector<uint8_t> iv = hexToBytes(ivLine);
+        vector<uint8_t> keystream = hexToBytes(keystreamLine);
+        State S = Init(key, iv, true);
+        bool match = true;
+        for (uint8_t expectedByte : keystream) {
+            if (Stream(S) != expectedByte) {
+                match = false;
+                break;
+            }
+            S = Next(S);
+        }
+        cout << "Test #" << count << ": ";
+        if (match) cout << "Passed" << endl;
+        else cout << "Failed" << endl;
+        count++;
+    }
+    keys.close();
+    ivs.close();
+    keystreams.close();
+    cout << "~~~ Tests finished ~~~" << endl;
+    return;
 }
 
 int encryptFile() {
@@ -252,6 +301,7 @@ int main()
         cout << "0. Exit" << endl;
         cout << "1. Encode file with Enocoro-128v2" << endl;
         cout << "2. Decode file with Enocoro-128v2" << endl;
+        cout << "3. Tests evaluation" << endl;
         cout << "Your choice: ";
         if (!(cin >> choice)) {
             cout << "Error!!! Invalid input";
@@ -270,6 +320,8 @@ int main()
         case 2: 
             decryptFile();
             break;
+        case 3:
+            Tests();
         default:
             cout << "There's no such option. Please, try again" << endl;
         }
